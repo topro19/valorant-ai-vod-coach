@@ -1,4 +1,4 @@
-﻿let currentJobId = null;
+let currentJobId = null;
 let pollInterval = null;
 let encountersData = [];
 let activeFilter = "all";
@@ -58,6 +58,8 @@ async function checkApiSettings() {
     const statusText = document.querySelector("#api-status-indicator .api-status-text");
     const dashStatus = document.getElementById("dash-gemini-status");
     const dashModel = document.getElementById("dash-model-name");
+    const dashBanner = document.getElementById("dash-api-banner");
+    const uploadBanner = document.getElementById("upload-api-banner");
 
     dashModel.textContent = data.gemini_model || "gemini-2.5-flash";
 
@@ -66,16 +68,27 @@ async function checkApiSettings() {
       statusText.textContent = `Gemini Active (${data.masked_key})`;
       dashStatus.textContent = "Connected";
       dashStatus.className = "stat-value green";
-      document.getElementById("settings-api-key").placeholder = `Configured: ${data.masked_key}`;
+      if (dashBanner) dashBanner.style.display = "none";
+      if (uploadBanner) uploadBanner.style.display = "none";
+      const settingsInput = document.getElementById("settings-api-key");
+      if (settingsInput) settingsInput.placeholder = `Active: ${data.masked_key}`;
     } else {
       statusDot.className = "status-indicator-dot red";
-      statusText.textContent = "Gemini API Key Required (or Offline Mode)";
+      statusText.textContent = "Gemini Key Required (Click to Setup)";
       dashStatus.textContent = "Offline Mode";
       dashStatus.className = "stat-value cyan";
+      if (dashBanner) dashBanner.style.display = "flex";
+      if (uploadBanner) uploadBanner.style.display = "flex";
+
+      // Automatically show modal prompt on first launch if unconfigured
+      if (!sessionStorage.getItem("dismissed_api_modal")) {
+        openApiKeyModal();
+      }
     }
 
     if (data.data_dir) {
-      document.getElementById("settings-data-dir").value = data.data_dir;
+      const dataDirInput = document.getElementById("settings-data-dir");
+      if (dataDirInput) dataDirInput.value = data.data_dir;
     }
   } catch (err) {
     console.error("Failed to check API settings:", err);
@@ -703,7 +716,118 @@ async function saveSettings(e) {
   }
 }
 
-function toggleApiKeyVisibility() {
-  const field = document.getElementById("settings-api-key");
-  field.type = field.type === "password" ? "text" : "password";
+// Verify Settings API Key
+async function verifySettingsApiKey() {
+  const apiKey = document.getElementById("settings-api-key").value.trim();
+  const statusBox = document.getElementById("settings-verify-status");
+  const btn = document.getElementById("btn-verify-settings-key");
+
+  if (!apiKey) {
+    statusBox.className = "api-feedback-card error";
+    statusBox.textContent = "Please enter an API key to test.";
+    return;
+  }
+
+  statusBox.className = "api-feedback-card loading";
+  statusBox.innerHTML = `<span class="loading-spinner" style="margin:0; width:16px; height:16px;"></span> Contacting Google Gemini 2.5 Flash...`;
+  btn.disabled = true;
+
+  try {
+    const res = await fetch("/api/verify-key", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ gemini_api_key: apiKey })
+    });
+    const data = await res.json();
+    if (data.valid) {
+      statusBox.className = "api-feedback-card success";
+      statusBox.textContent = `[SUCCESS] Verified! Active key: ${data.masked_key}`;
+      checkApiSettings();
+    } else {
+      statusBox.className = "api-feedback-card error";
+      statusBox.textContent = data.message || data.error || "Verification failed. Check your API key.";
+    }
+  } catch (err) {
+    statusBox.className = "api-feedback-card error";
+    statusBox.textContent = `Network error: ${err.message}`;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// Modal Handlers
+function openApiKeyModal() {
+  const modal = document.getElementById("api-key-modal");
+  const status = document.getElementById("modal-api-status");
+  if (status) {
+    status.className = "api-feedback-card";
+    status.textContent = "";
+  }
+  if (modal) {
+    modal.classList.add("active");
+    setTimeout(() => {
+      const input = document.getElementById("modal-api-key-input");
+      if (input) input.focus();
+    }, 150);
+  }
+}
+
+function closeApiKeyModal(rememberDismiss = false) {
+  const modal = document.getElementById("api-key-modal");
+  if (modal) {
+    modal.classList.remove("active");
+  }
+  if (rememberDismiss) {
+    sessionStorage.setItem("dismissed_api_modal", "true");
+  }
+}
+
+async function verifyAndSaveApiKey() {
+  const input = document.getElementById("modal-api-key-input");
+  const statusBox = document.getElementById("modal-api-status");
+  const btn = document.getElementById("btn-modal-verify");
+  const key = input ? input.value.trim() : "";
+
+  if (!key) {
+    statusBox.className = "api-feedback-card error";
+    statusBox.textContent = "Please enter your Google Gemini API key.";
+    return;
+  }
+
+  statusBox.className = "api-feedback-card loading";
+  statusBox.innerHTML = `<span class="loading-spinner" style="margin:0; width:16px; height:16px;"></span> Verifying key with Google Gemini 2.5 Flash...`;
+  btn.disabled = true;
+
+  try {
+    const res = await fetch("/api/verify-key", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ gemini_api_key: key })
+    });
+    const data = await res.json();
+    if (data.valid) {
+      statusBox.className = "api-feedback-card success";
+      statusBox.textContent = `[SUCCESS] ${data.message} (${data.masked_key})`;
+      sessionStorage.setItem("dismissed_api_modal", "true");
+      checkApiSettings();
+      setTimeout(() => {
+        closeApiKeyModal();
+      }, 1400);
+    } else {
+      statusBox.className = "api-feedback-card error";
+      statusBox.textContent = data.message || "Failed to verify key. Please check that your key is valid and has Gemini API enabled.";
+    }
+  } catch (err) {
+    statusBox.className = "api-feedback-card error";
+    statusBox.textContent = `Error connecting to backend: ${err.message}`;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function toggleApiKeyVisibility(inputId = "settings-api-key") {
+  const field = document.getElementById(inputId);
+  if (field) {
+    field.type = field.type === "password" ? "text" : "password";
+  }
 }

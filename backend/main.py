@@ -43,6 +43,9 @@ class SettingsUpdateRequest(BaseModel):
     gemini_model: Optional[str] = None
     data_dir: Optional[str] = None
 
+class VerifyKeyRequest(BaseModel):
+    gemini_api_key: str
+
 def run_analysis_task(job_id: str):
     engine = AnalysisEngine(job_id)
     engine.run()
@@ -53,9 +56,6 @@ def health():
 
 @app.get("/api/local-captures")
 def list_local_captures():
-    """
-    Scans common Windows Captures folders to easily select existing gameplay recordings.
-    """
     user_home = Path.home()
     captures_dir = user_home / "Videos" / "Captures"
     files_list = []
@@ -76,9 +76,6 @@ def list_local_captures():
 
 @app.post("/api/upload")
 async def upload_video(file: UploadFile = File(...)):
-    """
-    Uploads a video to local storage folder in D:/valorant-vod-coach-data.
-    """
     ext = Path(file.filename).suffix.lower()
     if ext not in [".mp4", ".mkv", ".mov", ".webm"]:
         raise HTTPException(status_code=400, detail="Unsupported video format. Please upload MP4, MKV, MOV, or WEBM.")
@@ -87,7 +84,7 @@ async def upload_video(file: UploadFile = File(...)):
     target_path = settings.uploads_dir / unique_name
 
     with open(target_path, "wb") as buffer:
-        while chunk := await file.read(1024 * 1024 * 10): # 10MB chunks
+        while chunk := await file.read(1024 * 1024 * 10):
             buffer.write(chunk)
 
     return {
@@ -173,6 +170,28 @@ def get_current_settings():
         "host": settings.host,
         "port": settings.port
     }
+
+@app.post("/api/verify-key")
+def verify_gemini_key(req: VerifyKeyRequest):
+    """
+    Tests and saves the user's Gemini API key live.
+    """
+    key = req.gemini_api_key.strip()
+    if not key:
+        raise HTTPException(status_code=400, detail="API key cannot be empty.")
+
+    try:
+        from google import genai
+        client = genai.Client(api_key=key)
+        res = client.models.generate_content(
+            model=settings.gemini_model,
+            contents="Hello"
+        )
+        settings.update_setting("GEMINI_API_KEY", key)
+        masked = (key[:6] + "..." + key[-4:]) if len(key) > 10 else "***"
+        return {"valid": True, "masked_key": masked, "message": "Gemini API key successfully verified and saved!"}
+    except Exception as e:
+        return {"valid": False, "error": str(e), "message": f"Verification failed: {str(e)}"}
 
 @app.post("/api/settings")
 def update_app_settings(req: SettingsUpdateRequest):

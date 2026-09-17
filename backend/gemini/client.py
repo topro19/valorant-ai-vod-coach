@@ -1,4 +1,4 @@
-﻿import os
+import os
 import json
 import base64
 import time
@@ -10,8 +10,11 @@ from backend.player_detection.state_machine import PlayerState
 
 class GeminiCoachClient:
     def __init__(self, api_key: Optional[str] = None, model_name: Optional[str] = None):
-        self.api_key = api_key or settings.gemini_api_key
+        self.api_key = api_key
         self.model_name = model_name or settings.gemini_model
+
+    def get_api_key(self) -> str:
+        return (self.api_key or settings.gemini_api_key or "").strip()
 
     def analyze_encounter(
         self,
@@ -24,9 +27,10 @@ class GeminiCoachClient:
         system_prompt = get_system_instruction(target_agent, target_username)
 
         # If live Gemini API Key is available, call Gemini API
-        if self.api_key:
+        active_key = self.get_api_key()
+        if active_key:
             try:
-                return self._call_live_gemini(clip_path, target_agent, target_username, encounter_meta, system_prompt)
+                return self._call_live_gemini(clip_path, target_agent, target_username, encounter_meta, system_prompt, active_key)
             except Exception as e:
                 print(f"[Gemini API Warning] Live API failed: {e}. Using deterministic player-lock analyzer.")
 
@@ -41,12 +45,14 @@ class GeminiCoachClient:
         target_agent: str,
         target_username: str,
         meta: Dict[str, Any],
-        system_prompt: str
+        system_prompt: str,
+        api_key: Optional[str] = None
     ) -> Dict[str, Any]:
         from google import genai
         from google.genai import types
 
-        client = genai.Client(api_key=self.api_key)
+        resolved_key = api_key or self.get_api_key()
+        client = genai.Client(api_key=resolved_key)
 
         video_file = client.files.upload(file=clip_path)
 

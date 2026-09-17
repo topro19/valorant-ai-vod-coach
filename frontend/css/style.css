@@ -1,4 +1,4 @@
-﻿:root {
+:root {
   --bg-darkest: #0b1218;
   --bg-main: #0f1923;
   --bg-surface: #17222c;
@@ -935,4 +935,201 @@ body {
 
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+
+/* Modal Overlay & Card */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 17, 24, 0.88);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.2s ease;
+}
+
+.modal-overlay.active {
+  opacity: 1;
+  visibility: visible;
+}
+
+.modal-container {
+  background: var(--bg-surface);
+  border: 1px solid var(--val-red);
+  box-shadow: 0 0 35px rgba(255, 70, 85, 0.25), 0 10px 40px rgba(0, 0, 0, 0.6);
+  border-radius: var(--radius-md);
+  width: 90%;
+  max-width: 580px;
+  position: relative;
+  overflow: hidden;
+  transform: scale(0.95);
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.modal-overlay.active .modal-container {
+  transform: scale(1);
+}
+
+.modal-header {
+  background: linear-gradient(135deg, rgba(255, 70, 85, 0.15), rgba(15, 25, 35, 0.9));
+  padding: 24px 28px 18px;
+  border-bottom: 1px solid var(--border-subtle);
+  position: relative;
+}
+
+.modal-badge {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: var(--val-red);
+  text-transform: uppercase;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.modal-title {
+  font-family: var(--font-display);
+  font-size: 28px;
+  letter-spacing: 0.5px;
+  color: #fff;
+  margin: 0 0 6px 0;
+}
+
+.modal-subtitle {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.modal-close-btn {
+  position: absolute;
+  top: 18px;
+  right: 20px;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 24px;
+  cursor: pointer;
+  line-height: 1;
+  transition: color 0.15s ease;
+}
+
+.modal-close-btn:hover {
+  color: #fff;
+}
+
+.modal-body {
+  padding: 24px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.modal-footer {
+  padding: 16px 28px 24px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.accent-link {
+  color: var(--val-cyan);
+  text-decoration: none;
+  font-size: 12px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: color 0.15s ease;
+}
+
+.accent-link:hover {
+  color: #fff;
+  text-decoration: underline;
+}
+
+/* API Status Response Banners */
+.api-feedback-card {
+  padding: 12px 16px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  line-height: 1.4;
+  display: none;
+  animation: fadeIn 0.2s ease;
+}
+
+.api-feedback-card.success {
+  display: block;
+  background: rgba(16, 224, 128, 0.12);
+  border: 1px solid var(--val-green);
+  color: #69f0ae;
+}
+
+.api-feedback-card.error {
+  display: block;
+  background: rgba(255, 70, 85, 0.12);
+  border: 1px solid var(--val-red);
+  color: #ff8a80;
+}
+
+.api-feedback-card.loading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(0, 240, 255, 0.08);
+  border: 1px solid var(--val-cyan);
+  color: var(--val-cyan);
+}
+
+/* Floating Banner */
+.tactical-banner {
+  background: linear-gradient(90deg, rgba(255, 70, 85, 0.15), rgba(23, 34, 44, 0.8));
+  border: 1px solid rgba(255, 70, 85, 0.4);
+  border-left: 4px solid var(--val-red);
+  border-radius: var(--radius-sm);
+  padding: 14px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+  gap: 16px;
+}
+
+.tactical-banner-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.tactical-banner-icon {
+  font-size: 22px;
+}
+
+.tactical-banner-text strong {
+  color: #fff;
+  display: block;
+  font-size: 14px;
+}
+
+.tactical-banner-text span {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+/* Clickable Sidebar Indicator */
+.sidebar-footer .api-status-card {
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.sidebar-footer .api-status-card:hover {
+  background: var(--bg-surface-hover);
+  border-color: var(--border-strong);
 }

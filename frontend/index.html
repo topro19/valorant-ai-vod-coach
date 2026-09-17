@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -67,7 +67,7 @@
       </nav>
 
       <div class="sidebar-footer">
-        <div class="api-status-card" id="api-status-indicator">
+        <div class="api-status-card" id="api-status-indicator" onclick="openApiKeyModal()" title="Click to manage Gemini API Key">
           <span class="status-indicator-dot red"></span>
           <span class="api-status-text">Checking Gemini API...</span>
         </div>
@@ -96,6 +96,18 @@
 
       <!-- TAB 1: DASHBOARD -->
       <section class="tab-pane active" id="tab-dashboard">
+        <!-- API Setup Banner (shown when key is missing) -->
+        <div class="tactical-banner" id="dash-api-banner" style="display:none;">
+          <div class="tactical-banner-info">
+            <div class="tactical-banner-icon">⚡</div>
+            <div class="tactical-banner-text">
+              <strong>GEMINI AI KEY NOT CONFIGURED</strong>
+              <span>Connect your Google Gemini API key to activate deep neural video analysis. Offline demo mode is currently enabled.</span>
+            </div>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="openApiKeyModal()">CONNECT KEY</button>
+        </div>
+
         <div class="hero-banner">
           <div class="hero-text">
             <h2>ELEVATE YOUR TACTICAL DECISION MAKING</h2>
@@ -160,6 +172,18 @@
       <!-- TAB 2: UPLOAD VOD -->
       <section class="tab-pane" id="tab-upload">
         <div class="upload-container">
+          <!-- API Setup Banner (shown when key is missing) -->
+          <div class="tactical-banner" id="upload-api-banner" style="display:none; margin-bottom: 20px;">
+            <div class="tactical-banner-info">
+              <div class="tactical-banner-icon">🔑</div>
+              <div class="tactical-banner-text">
+                <strong>GEMINI API KEY READY TO CONFIGURE</strong>
+                <span>Add your Google Gemini API key to unlock full video AI analysis for this VOD.</span>
+              </div>
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="openApiKeyModal()">SETUP KEY</button>
+          </div>
+
           <div class="panel upload-form-panel">
             <div class="panel-header">
               <h2>ANALYZE GAMEPLAY RECORDING</h2>
@@ -472,9 +496,11 @@
                   <label>Google Gemini API Key</label>
                   <div class="input-with-button">
                     <input type="password" id="settings-api-key" class="input-field" placeholder="AIzaSy...">
-                    <button type="button" class="btn btn-secondary btn-sm" onclick="toggleApiKeyVisibility()">Show</button>
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="toggleApiKeyVisibility('settings-api-key')">Show</button>
+                    <button type="button" class="btn btn-accent btn-sm" id="btn-verify-settings-key" onclick="verifySettingsApiKey()">Test &amp; Verify</button>
                   </div>
-                  <span class="field-hint">Your key is stored securely in <code>.env</code> locally. Never shared or sent to external servers.</span>
+                  <div class="api-feedback-card" id="settings-verify-status" style="margin-top: 8px;"></div>
+                  <span class="field-hint">Your key is stored securely in <code>.env</code> locally. Never shared or sent to external servers. <a href="https://aistudio.google.com/app/apikey" target="_blank" class="accent-link">Get free key at Google AI Studio ↗</a></span>
                 </div>
 
                 <div class="form-group">
@@ -500,6 +526,39 @@
         </div>
       </section>
     </main>
+  </div>
+
+  <!-- API Key Setup Modal -->
+  <div class="modal-overlay" id="api-key-modal">
+    <div class="modal-container">
+      <div class="modal-header">
+        <span class="modal-badge">TACTICAL SYSTEM SETUP</span>
+        <h2 class="modal-title">CONNECT GEMINI API KEY</h2>
+        <p class="modal-subtitle">VALORANT AI VOD Coach uses Google Gemini 2.5 Flash video AI for deep neural combat understanding. Enter your personal API key below.</p>
+        <button class="modal-close-btn" onclick="closeApiKeyModal(true)">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="modal-api-key-input">Google Gemini API Key</label>
+          <div class="input-with-button">
+            <input type="password" id="modal-api-key-input" class="input-field" placeholder="AIzaSy..." autocomplete="off">
+            <button type="button" class="btn btn-secondary btn-sm" onclick="toggleApiKeyVisibility('modal-api-key-input')">Show</button>
+          </div>
+          <div style="margin-top: 8px; display: flex; justify-content: space-between; align-items: center;">
+            <a href="https://aistudio.google.com/app/apikey" target="_blank" class="accent-link">
+              <span>↗</span> Get free key from Google AI Studio
+            </a>
+            <span class="field-hint" style="margin: 0;">Stored strictly in local .env</span>
+          </div>
+        </div>
+
+        <div class="api-feedback-card" id="modal-api-status"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeApiKeyModal(true)">Offline Demo Mode</button>
+        <button type="button" class="btn btn-primary" id="btn-modal-verify" onclick="verifyAndSaveApiKey()">VERIFY &amp; ACTIVATE KEY</button>
+      </div>
+    </div>
   </div>
 
   <script src="/js/app.js"></script>

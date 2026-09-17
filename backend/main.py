@@ -1,4 +1,4 @@
-﻿import os
+import os
 import uuid
 import threading
 from pathlib import Path
@@ -35,7 +35,7 @@ class AnalysisRequest(BaseModel):
     merge_window: Optional[float] = 7.0
     pre_roll: Optional[float] = 12.0
     post_roll: Optional[float] = 5.0
-    gemini_model: Optional[str] = "gemini-2.5-flash"
+    gemini_model: Optional[str] = "gemini-3.6-flash"
     analysis_depth: Optional[str] = "standard"
 
 class SettingsUpdateRequest(BaseModel):
@@ -174,22 +174,52 @@ def get_current_settings():
 @app.post("/api/verify-key")
 def verify_gemini_key(req: VerifyKeyRequest):
     """
-    Tests and saves the user's Gemini API key live.
+    Tests and saves the user's Gemini API key live with adaptive model fallback.
     """
     key = req.gemini_api_key.strip()
     if not key:
         raise HTTPException(status_code=400, detail="API key cannot be empty.")
 
+    candidate_models = ["gemini-3.6-flash", "gemini-3.7-flash", "gemini-3.5-flash", "gemini-flash-latest", "gemini-2.5-flash"]
+    if settings.gemini_model and settings.gemini_model not in candidate_models:
+        candidate_models.insert(0, settings.gemini_model)
+
+    last_error = None
+    working_model = None
+
     try:
         from google import genai
         client = genai.Client(api_key=key)
-        res = client.models.generate_content(
-            model=settings.gemini_model,
-            contents="Hello"
-        )
-        settings.update_setting("GEMINI_API_KEY", key)
-        masked = (key[:6] + "..." + key[-4:]) if len(key) > 10 else "***"
-        return {"valid": True, "masked_key": masked, "message": "Gemini API key successfully verified and saved!"}
+
+        for model_name in candidate_models:
+            try:
+                res = client.models.generate_content(
+                    model=model_name,
+                    contents="Hello"
+                )
+                working_model = model_name
+                break
+            except Exception as e:
+                last_error = e
+                # If model is 404 / deprecated / unavailable, try next candidate
+                err_str = str(e)
+                if "404" in err_str or "NOT_FOUND" in err_str or "not available" in err_str.lower():
+                    continue
+                # If invalid key, stop immediately
+                break
+
+        if working_model:
+            settings.update_setting("GEMINI_API_KEY", key)
+            settings.update_setting("GEMINI_MODEL", working_model)
+            masked = (key[:6] + "..." + key[-4:]) if len(key) > 10 else "***"
+            return {
+                "valid": True,
+                "masked_key": masked,
+                "model": working_model,
+                "message": f"Gemini API key verified successfully using {working_model}!"
+            }
+        else:
+            return {"valid": False, "error": str(last_error), "message": f"Verification failed: {str(last_error)}"}
     except Exception as e:
         return {"valid": False, "error": str(e), "message": f"Verification failed: {str(e)}"}
 

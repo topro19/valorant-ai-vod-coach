@@ -1,4 +1,4 @@
-﻿import os
+import os
 import time
 from typing import Dict, Any, List, Optional
 from pathlib import Path
@@ -50,8 +50,13 @@ class AnalysisEngine:
 
             # Stage 2: Timestamp Detection via OpenCV Valorant Timestamp Finder
             update_job(self.job_id, stage="Timestamp detection (OpenCV)", progress=25.0)
-            finder = ValorantTimestampFinder(sample_interval_sec=1.0)
-            candidates = finder.detect_candidate_events(self.video_path)
+
+            def on_scan_progress(pct: float, msg: str):
+                scaled_pct = 25.0 + (pct * 0.15)
+                update_job(self.job_id, stage=msg, progress=round(scaled_pct, 1))
+
+            finder = ValorantTimestampFinder(sample_interval_sec=1.5)
+            candidates = finder.detect_candidate_events(self.video_path, progress_callback=on_scan_progress)
             
             # If video had no detected events (e.g. short clip or non-standard overlay),
             # provide fallback sample candidate windows so analysis can proceed smoothly

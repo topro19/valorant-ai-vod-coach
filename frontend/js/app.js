@@ -61,7 +61,7 @@ async function checkApiSettings() {
     const dashBanner = document.getElementById("dash-api-banner");
     const uploadBanner = document.getElementById("upload-api-banner");
 
-    dashModel.textContent = data.gemini_model || "gemini-3.6-flash";
+    dashModel.textContent = data.gemini_model || "gemini-3.5-flash-lite";
 
     if (data.has_gemini_key) {
       statusDot.className = "status-indicator-dot green";

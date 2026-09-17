@@ -71,16 +71,35 @@ Determine if the POV belongs to {target_agent}.
 If the target player died or camera is spectating a teammate, classify as SPECTATING_TEAMMATE and set event_valid: false.
 Only analyze if {target_agent} is ALIVE in first-person POV."""
 
-        response = client.models.generate_content(
-            model=self.model_name,
-            contents=[video_file, user_content],
-            config=types.GenerateContentConfig(
-                system_instruction=system_prompt,
-                response_mime_type="application/json",
-                response_schema=GEMINI_ANALYSIS_SCHEMA,
-                temperature=0.2
-            )
-        )
+        models_to_try = [self.model_name]
+        if "3.5-flash-lite" not in self.model_name:
+            models_to_try.append("gemini-3.5-flash-lite")
+
+        response = None
+        last_exc = None
+        for m in models_to_try:
+            try:
+                response = client.models.generate_content(
+                    model=m,
+                    contents=[video_file, user_content],
+                    config=types.GenerateContentConfig(
+                        system_instruction=system_prompt,
+                        response_mime_type="application/json",
+                        response_schema=GEMINI_ANALYSIS_SCHEMA,
+                        temperature=0.2
+                    )
+                )
+                break
+            except Exception as e:
+                last_exc = e
+                err_text = str(e)
+                if "429" in err_text or "RESOURCE_EXHAUSTED" in err_text or "404" in err_text:
+                    time.sleep(2)
+                    continue
+                raise
+
+        if not response:
+            raise last_exc
 
         try:
             client.files.delete(name=video_file.name)

@@ -35,7 +35,7 @@ class AnalysisRequest(BaseModel):
     merge_window: Optional[float] = 7.0
     pre_roll: Optional[float] = 12.0
     post_roll: Optional[float] = 5.0
-    gemini_model: Optional[str] = "gemini-3.6-flash"
+    gemini_model: Optional[str] = "gemini-3.5-flash-lite"
     analysis_depth: Optional[str] = "standard"
 
 class SettingsUpdateRequest(BaseModel):
@@ -180,7 +180,7 @@ def verify_gemini_key(req: VerifyKeyRequest):
     if not key:
         raise HTTPException(status_code=400, detail="API key cannot be empty.")
 
-    candidate_models = ["gemini-3.6-flash", "gemini-3.7-flash", "gemini-3.5-flash", "gemini-flash-latest", "gemini-2.5-flash"]
+    candidate_models = ["gemini-3.5-flash-lite", "gemini-3.6-flash", "gemini-3.7-flash", "gemini-flash-latest"]
     if settings.gemini_model and settings.gemini_model not in candidate_models:
         candidate_models.insert(0, settings.gemini_model)
 

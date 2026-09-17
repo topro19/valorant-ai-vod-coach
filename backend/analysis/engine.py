@@ -117,6 +117,10 @@ class AnalysisEngine:
                     encounter_meta=enc_meta
                 )
 
+                # Rate-limit safety delay to stay well below 15 RPM free tier limit
+                if self.gemini_client.get_api_key() and idx < len(encounters) - 1:
+                    time.sleep(3.5)
+
                 # Merge clip info and analysis
                 full_encounter = {
                     **enc_meta,

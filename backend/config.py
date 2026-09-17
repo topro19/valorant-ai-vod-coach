@@ -25,7 +25,7 @@ class Settings:
 
         self.host = os.getenv('HOST', '127.0.0.1')
         self.port = int(os.getenv('PORT', '8000'))
-        self.gemini_model = os.getenv('GEMINI_MODEL', 'gemini-3.6-flash')
+        self.gemini_model = os.getenv('GEMINI_MODEL', 'gemini-3.5-flash-lite')
 
         # Add local bin folder to PATH if present (for portable ffmpeg)
         bin_dir = BASE_DIR / 'bin'

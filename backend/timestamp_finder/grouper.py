@@ -44,9 +44,11 @@ class EncounterGrouper:
         candidates: List[CandidateTimestamp],
         video_duration: float,
         merge_window_sec: float = 5.0,
-        max_cluster_duration_sec: float = 16.0,
+        clutch_merge_window_sec: float = 16.0,
+        max_normal_cluster_sec: float = 16.0,
+        max_clutch_cluster_sec: float = 60.0,
         pre_roll_sec: float = 7.0,
-        post_roll_sec: float = 3.5
+        post_roll_sec: float = 4.0
     ) -> List[EncounterWindow]:
         if not candidates:
             return []
@@ -54,16 +56,23 @@ class EncounterGrouper:
         # Sort candidates by timestamp
         sorted_candidates = sorted(candidates, key=lambda c: c.timestamp_sec)
         
-        # 1. Cluster nearby timestamps with both step limit and max cluster duration limit
+        # 1. Cluster nearby timestamps with adaptive clutch awareness
         clusters: List[List[CandidateTimestamp]] = []
         current_cluster: List[CandidateTimestamp] = [sorted_candidates[0]]
 
         for cand in sorted_candidates[1:]:
             prev_cand = current_cluster[-1]
             first_cand = current_cluster[0]
-            # Must be close in time AND total cluster must not exceed max_cluster_duration_sec
-            is_close = (cand.timestamp_sec - prev_cand.timestamp_sec) <= merge_window_sec
-            is_within_limit = (cand.timestamp_sec - first_cand.timestamp_sec) <= max_cluster_duration_sec
+
+            # A cluster is a candidate clutch/multi-kill if it contains player KILL_BANNERs
+            has_player_action = any(c.trigger_type == "KILL_BANNER" for c in current_cluster) or (cand.trigger_type == "KILL_BANNER")
+            
+            # Dynamic merge window and max duration based on whether it's an active player multi-kill/clutch sequence
+            allowed_merge_window = clutch_merge_window_sec if has_player_action else merge_window_sec
+            allowed_max_duration = max_clutch_cluster_sec if has_player_action else max_normal_cluster_sec
+
+            is_close = (cand.timestamp_sec - prev_cand.timestamp_sec) <= allowed_merge_window
+            is_within_limit = (cand.timestamp_sec - first_cand.timestamp_sec) <= allowed_max_duration
 
             if is_close and is_within_limit:
                 current_cluster.append(cand)
@@ -77,7 +86,10 @@ class EncounterGrouper:
         # 2. Convert clusters to expanded encounter windows
         encounters: List[EncounterWindow] = []
         for idx, cluster in enumerate(clusters):
-            # Anchor to first KILL_BANNER or DEATH_VIGNETTE if present
+            # Check for clutch / multi-kill
+            player_kills = sum(1 for c in cluster if c.trigger_type == "KILL_BANNER")
+            is_clutch = player_kills >= 2
+
             event_sec = cluster[0].timestamp_sec
             for c in cluster:
                 if c.trigger_type in ["KILL_BANNER", "DEATH_VIGNETTE"]:
@@ -87,9 +99,10 @@ class EncounterGrouper:
             start_sec = max(0.0, cluster[0].timestamp_sec - pre_roll_sec)
             end_sec = min(video_duration, cluster[-1].timestamp_sec + post_roll_sec)
 
-            # Cap individual encounter duration to prevent runaway clips
-            if (end_sec - start_sec) > 25.0:
-                end_sec = start_sec + 25.0
+            # Cap individual encounter duration: 65s for clutch/multi-kills, 25s for isolated duels
+            max_encounter_dur = 65.0 if is_clutch else 25.0
+            if (end_sec - start_sec) > max_encounter_dur:
+                end_sec = start_sec + max_encounter_dur
 
             # Prevent overlap with previous encounter
             if encounters and start_sec < encounters[-1].end_sec:
@@ -101,7 +114,7 @@ class EncounterGrouper:
                     start_sec = encounters[-1].end_sec + 0.5
                     end_sec = max(start_sec + 3.0, end_sec)
 
-            trigger = "KILL_BANNER" if any(c.trigger_type == "KILL_BANNER" for c in cluster) else "KILLFEED_COMBAT"
+            trigger = "CLUTCH_MULTIKILL" if is_clutch else ("KILL_BANNER" if any(c.trigger_type == "KILL_BANNER" for c in cluster) else "KILLFEED_COMBAT")
 
             encounters.append(EncounterWindow(
                 encounter_index=idx + 1,

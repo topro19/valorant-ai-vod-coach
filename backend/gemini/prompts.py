@@ -1,4 +1,4 @@
-﻿def get_system_instruction(target_agent: str, target_username: str) -> str:
+def get_system_instruction(target_agent: str, target_username: str) -> str:
     user_str = target_username if target_username else "Not provided"
     return f"""You are a professional Valorant VOD coach.
 
@@ -134,3 +134,42 @@ GEMINI_ANALYSIS_SCHEMA = {
         "confidence"
     ]
 }
+
+BATCH_GEMINI_ANALYSIS_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "encounters": {
+            "type": "array",
+            "items": GEMINI_ANALYSIS_SCHEMA
+        }
+    },
+    "required": ["encounters"]
+}
+
+def get_batch_montage_prompt(target_agent: str, target_username: str, montage_items: list) -> str:
+    user_str = target_username if target_username else "Not provided"
+    items_desc = []
+    for item in montage_items:
+        idx = item.get("encounter_index", 1)
+        m_start = item.get("montage_start_str", "00:00")
+        m_end = item.get("montage_end_str", "00:00")
+        v_start = item.get("start_formatted", "")
+        v_end = item.get("end_formatted", "")
+        items_desc.append(f"- Duel #{idx}: Montage timestamp {m_start} - {m_end} (Match time {v_start} - {v_end})")
+    
+    duels_text = "\n".join(items_desc)
+    
+    return f"""This video is a concatenated combat montage containing {len(montage_items)} duels/fights from a Valorant match.
+TARGET PLAYER TO COACH:
+- Agent: {target_agent}
+- Username: {user_str}
+
+Below are the exact timestamps of each duel in this montage video:
+{duels_text}
+
+STRICT COACHING & PLAYER LOCK RULES:
+1. For each duel listed above, examine the footage at that duel's montage timestamp range.
+2. Determine if the first-person POV belongs to {target_agent} while alive.
+3. If {target_agent} is dead and the camera is spectating a teammate or enemy, classify player_state as "SPECTATING_TEAMMATE", event_valid as false, mistakes as [], positive_actions as [], and ignored_reason as "IGNORED: Spectating teammate — not analyzed."
+4. If {target_agent} is alive in first-person POV, provide an accurate tactical breakdown: mistakes, positive actions, crosshair placement, positioning, movement, and what the player should have done.
+5. Provide one analysis entry in the 'encounters' list for each duel in sequential order, setting event_id to the duel index."""

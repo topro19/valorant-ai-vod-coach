@@ -5,8 +5,21 @@ import time
 from typing import Dict, Any, Optional, List
 from pathlib import Path
 from backend.config import settings
-from backend.gemini.prompts import get_system_instruction, GEMINI_ANALYSIS_SCHEMA
+from backend.gemini.prompts import (
+    get_system_instruction,
+    GEMINI_ANALYSIS_SCHEMA,
+    get_batch_montage_prompt,
+    BATCH_GEMINI_ANALYSIS_SCHEMA
+)
 from backend.player_detection.state_machine import PlayerState
+
+FALLBACK_MODELS_ORDER = [
+    "gemini-3.8-flash",
+    "gemini-3.7-flash",
+    "gemini-3.6-flash",
+    "gemini-3.5-flash",
+    "gemini-3.5-flash-lite",
+]
 
 class GeminiCoachClient:
     def __init__(self, api_key: Optional[str] = None, model_name: Optional[str] = None):
@@ -15,6 +28,15 @@ class GeminiCoachClient:
 
     def get_api_key(self) -> str:
         return (self.api_key or settings.gemini_api_key or "").strip()
+
+    def _get_candidate_models(self) -> List[str]:
+        chain = []
+        if self.model_name and self.model_name not in chain:
+            chain.append(self.model_name)
+        for m in FALLBACK_MODELS_ORDER:
+            if m not in chain:
+                chain.append(m)
+        return chain
 
     def analyze_encounter(
         self,
@@ -39,6 +61,143 @@ class GeminiCoachClient:
             clip_path, target_agent, target_username, encounter_meta, override_state
         )
 
+    def analyze_montage_batch(
+        self,
+        montage_path: str,
+        target_agent: str,
+        target_username: str,
+        montage_items: List[Dict[str, Any]],
+        on_status_callback: Optional[Any] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Analyzes an entire combat montage video (containing multiple duels) in 1 SINGLE Gemini API request,
+        using cascading fallback across models from best to worst.
+        """
+        active_key = self.get_api_key()
+        if not active_key:
+            print("[Gemini Offline] No API key provided. Using deterministic player-lock analyzer for all encounters.")
+            return [
+                self._deterministic_player_lock_analysis(
+                    item.get("clip_path", ""), target_agent, target_username, item
+                )
+                for item in montage_items
+            ]
+
+        try:
+            return self._call_live_gemini_batch(
+                montage_path=montage_path,
+                target_agent=target_agent,
+                target_username=target_username,
+                montage_items=montage_items,
+                api_key=active_key,
+                on_status_callback=on_status_callback
+            )
+        except Exception as e:
+            print(f"[Gemini Batch Fallback Warning] All live models in fallback chain failed: {e}. Cascading to deterministic analyzer.")
+            return [
+                self._deterministic_player_lock_analysis(
+                    item.get("clip_path", ""), target_agent, target_username, item
+                )
+                for item in montage_items
+            ]
+
+    def _call_live_gemini_batch(
+        self,
+        montage_path: str,
+        target_agent: str,
+        target_username: str,
+        montage_items: List[Dict[str, Any]],
+        api_key: str,
+        on_status_callback: Optional[Any] = None
+    ) -> List[Dict[str, Any]]:
+        from google import genai
+        from google.genai import types
+
+        client = genai.Client(api_key=api_key)
+        system_prompt = get_system_instruction(target_agent, target_username)
+        user_content = get_batch_montage_prompt(target_agent, target_username, montage_items)
+
+        if on_status_callback:
+            on_status_callback("Uploading combat montage video to Gemini...")
+
+        video_file = client.files.upload(file=montage_path)
+        try:
+            while video_file.state.name == "PROCESSING":
+                time.sleep(1)
+                video_file = client.files.get(name=video_file.name)
+
+            if video_file.state.name == "FAILED":
+                raise ValueError(f"Gemini video processing failed: {video_file.error.message}")
+
+            models_to_try = self._get_candidate_models()
+            response = None
+            last_exc = None
+
+            for m in models_to_try:
+                try:
+                    if on_status_callback:
+                        on_status_callback(f"Analyzing {len(montage_items)} duels in single request using {m}...")
+                    print(f"[Gemini Batch] Attempting analysis with model {m}...")
+
+                    response = client.models.generate_content(
+                        model=m,
+                        contents=[video_file, user_content],
+                        config=types.GenerateContentConfig(
+                            system_instruction=system_prompt,
+                            response_mime_type="application/json",
+                            response_schema=BATCH_GEMINI_ANALYSIS_SCHEMA,
+                            temperature=0.2
+                        )
+                    )
+                    print(f"[Gemini Batch] Model {m} successfully evaluated combat montage!")
+                    break
+                except Exception as e:
+                    last_exc = e
+                    err_text = str(e)
+                    print(f"[Gemini Fallback] Model {m} failed with: {err_text}. Cascading to next model...")
+                    time.sleep(1.5)
+                    continue
+
+            if not response or not response.text:
+                raise last_exc or ValueError("All models in fallback chain failed to produce a response.")
+
+            parsed = json.loads(response.text)
+            encounters_raw = parsed.get("encounters") if isinstance(parsed, dict) else parsed
+            if not isinstance(encounters_raw, list):
+                encounters_raw = []
+
+            # Map results by event_id or sequential index
+            results_by_id = {}
+            for res_item in encounters_raw:
+                eid = res_item.get("event_id")
+                if eid is not None:
+                    results_by_id[int(eid)] = res_item
+
+            final_results = []
+            for idx, item in enumerate(montage_items):
+                enc_idx = item.get("encounter_index", idx + 1)
+                analysis_item = results_by_id.get(enc_idx)
+                if not analysis_item and idx < len(encounters_raw):
+                    analysis_item = encounters_raw[idx]
+                
+                if not analysis_item:
+                    # Deterministic fallback for any missing encounter
+                    analysis_item = self._deterministic_player_lock_analysis(
+                        item.get("clip_path", ""), target_agent, target_username, item
+                    )
+
+                # Ensure convenience fields
+                analysis_item["is_target_player"] = analysis_item.get("player_identity", {}).get("is_target_player", False)
+                analysis_item["target_agent"] = target_agent
+                final_results.append(analysis_item)
+
+            return final_results
+        finally:
+            try:
+                client.files.delete(name=video_file.name)
+            except Exception:
+                pass
+
     def _call_live_gemini(
         self,
         clip_path: str,
@@ -56,14 +215,15 @@ class GeminiCoachClient:
 
         video_file = client.files.upload(file=clip_path)
 
-        while video_file.state.name == "PROCESSING":
-            time.sleep(1)
-            video_file = client.files.get(name=video_file.name)
+        try:
+            while video_file.state.name == "PROCESSING":
+                time.sleep(1)
+                video_file = client.files.get(name=video_file.name)
 
-        if video_file.state.name == "FAILED":
-            raise ValueError(f"Gemini video processing failed: {video_file.error.message}")
+            if video_file.state.name == "FAILED":
+                raise ValueError(f"Gemini video processing failed: {video_file.error.message}")
 
-        user_content = f"""Analyze this Valorant encounter clip ({meta.get('start_formatted', '')} to {meta.get('end_formatted', '')}).
+            user_content = f"""Analyze this Valorant encounter clip ({meta.get('start_formatted', '')} to {meta.get('end_formatted', '')}).
 The primary event occurred around {meta.get('event_formatted', '')}.
 Target player: Agent: {target_agent}, Username: {target_username or 'N/A'}.
 
@@ -71,46 +231,42 @@ Determine if the POV belongs to {target_agent}.
 If the target player died or camera is spectating a teammate, classify as SPECTATING_TEAMMATE and set event_valid: false.
 Only analyze if {target_agent} is ALIVE in first-person POV."""
 
-        models_to_try = [self.model_name]
-        if "3.5-flash-lite" not in self.model_name:
-            models_to_try.append("gemini-3.5-flash-lite")
-
-        response = None
-        last_exc = None
-        for m in models_to_try:
-            try:
-                response = client.models.generate_content(
-                    model=m,
-                    contents=[video_file, user_content],
-                    config=types.GenerateContentConfig(
-                        system_instruction=system_prompt,
-                        response_mime_type="application/json",
-                        response_schema=GEMINI_ANALYSIS_SCHEMA,
-                        temperature=0.2
+            models_to_try = self._get_candidate_models()
+            response = None
+            last_exc = None
+            for m in models_to_try:
+                try:
+                    response = client.models.generate_content(
+                        model=m,
+                        contents=[video_file, user_content],
+                        config=types.GenerateContentConfig(
+                            system_instruction=system_prompt,
+                            response_mime_type="application/json",
+                            response_schema=GEMINI_ANALYSIS_SCHEMA,
+                            temperature=0.2
+                        )
                     )
-                )
-                break
-            except Exception as e:
-                last_exc = e
-                err_text = str(e)
-                if "429" in err_text or "RESOURCE_EXHAUSTED" in err_text or "404" in err_text:
-                    time.sleep(2)
+                    break
+                except Exception as e:
+                    last_exc = e
+                    err_text = str(e)
+                    print(f"[Gemini Fallback] Model {m} failed with: {err_text}. Cascading to next model...")
+                    time.sleep(1.5)
                     continue
-                raise
 
-        if not response:
-            raise last_exc
+            if not response:
+                raise last_exc
 
-        try:
-            client.files.delete(name=video_file.name)
-        except Exception:
-            pass
-
-        parsed = json.loads(response.text)
-        # Ensure top-level convenience fields
-        parsed["is_target_player"] = parsed.get("player_identity", {}).get("is_target_player", False)
-        parsed["target_agent"] = target_agent
-        return parsed
+            parsed = json.loads(response.text)
+            # Ensure top-level convenience fields
+            parsed["is_target_player"] = parsed.get("player_identity", {}).get("is_target_player", False)
+            parsed["target_agent"] = target_agent
+            return parsed
+        finally:
+            try:
+                client.files.delete(name=video_file.name)
+            except Exception:
+                pass
 
     def _deterministic_player_lock_analysis(
         self,

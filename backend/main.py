@@ -180,7 +180,13 @@ def verify_gemini_key(req: VerifyKeyRequest):
     if not key:
         raise HTTPException(status_code=400, detail="API key cannot be empty.")
 
-    candidate_models = ["gemini-3.5-flash-lite", "gemini-3.6-flash", "gemini-3.7-flash", "gemini-flash-latest"]
+    candidate_models = [
+        "gemini-3.8-flash",
+        "gemini-3.7-flash",
+        "gemini-3.6-flash",
+        "gemini-3.5-flash",
+        "gemini-3.5-flash-lite"
+    ]
     if settings.gemini_model and settings.gemini_model not in candidate_models:
         candidate_models.insert(0, settings.gemini_model)
 
@@ -201,11 +207,11 @@ def verify_gemini_key(req: VerifyKeyRequest):
                 break
             except Exception as e:
                 last_error = e
-                # If model is 404 / deprecated / unavailable, try next candidate
                 err_str = str(e)
-                if "404" in err_str or "NOT_FOUND" in err_str or "not available" in err_str.lower():
+                # If model is 404 (not found), 503 (temporary high demand spike), or 429, cascade to next candidate
+                if any(code in err_str for code in ["404", "503", "429", "NOT_FOUND", "UNAVAILABLE", "RESOURCE_EXHAUSTED"]):
                     continue
-                # If invalid key, stop immediately
+                # If invalid key (e.g. 400 or 403 PERMISSION_DENIED / API_KEY_INVALID), stop immediately
                 break
 
         if working_model:

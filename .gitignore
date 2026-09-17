@@ -1,4 +1,4 @@
-﻿.env
+.env
 __pycache__/
 *.pyc
 *.pyo
@@ -14,3 +14,6 @@ htmlcov/
 data/
 D:/valorant-vod-coach-data/
 temp/
+randi/
+*.rar
+*.zip

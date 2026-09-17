@@ -80,59 +80,70 @@ class AnalysisEngine:
             )
             update_job(self.job_id, encounter_count=len(encounters))
 
-            # Stage 4: Extract Clips locally
-            update_job(self.job_id, stage="Extracting encounter clips (FFmpeg)", progress=55.0)
+            # Stage 4: Extract Clips locally (for per-duel playback in UI)
+            update_job(self.job_id, stage="Extracting duel clips (FFmpeg)", progress=50.0)
             clips_output_dir = str(settings.clips_dir / self.job_id)
             os.makedirs(clips_output_dir, exist_ok=True)
 
-            analyzed_encounters: List[Dict[str, Any]] = []
-            target_count = 0
-            ignored_count = 0
-
-            # Stages 5 & 6: Player Identity Verification & Gemini Analysis
+            extracted_encounters: List[Dict[str, Any]] = []
             for idx, enc in enumerate(encounters):
-                step_progress = 55.0 + (30.0 * (idx / max(1, len(encounters))))
+                step_progress = 50.0 + (15.0 * (idx / max(1, len(encounters))))
                 update_job(
                     self.job_id,
-                    stage=f"Analyzing encounter {idx + 1} of {len(encounters)} (Player Lock Verification)",
+                    stage=f"Extracting duel clip {idx + 1} of {len(encounters)} (FFmpeg)",
                     progress=round(step_progress, 1)
                 )
-
                 clip_info = ClipExtractor.extract_encounter_clip(
                     video_path=self.video_path,
                     encounter=enc,
                     output_dir=clips_output_dir,
                     job_id=self.job_id
                 )
-
-                enc_meta = {
+                extracted_encounters.append({
                     **enc.to_dict(),
                     **clip_info
-                }
+                })
 
-                analysis_result = self.gemini_client.analyze_encounter(
-                    clip_path=clip_info["clip_path"],
+            # Stage 5: Assemble Combat Montage (1-hour max chunks, typically 1 montage)
+            update_job(self.job_id, stage="Assembling combat montage reel (FFmpeg)", progress=66.0)
+            montages = ClipExtractor.create_combat_montages(
+                encounters=extracted_encounters,
+                output_dir=clips_output_dir,
+                job_id=self.job_id,
+                max_duration_sec=3600.0
+            )
+
+            # Stage 6: 1-Request Batch Video Evaluation with Cascading Fallback
+            analyzed_encounters: List[Dict[str, Any]] = []
+            target_count = 0
+            ignored_count = 0
+
+            for m_idx, montage in enumerate(montages):
+                def on_status(msg: str):
+                    update_job(
+                        self.job_id,
+                        stage=f"[Montage {m_idx + 1}/{len(montages)}] {msg}",
+                        progress=round(70.0 + (15.0 * (m_idx / max(1, len(montages)))), 1)
+                    )
+
+                batch_analysis = self.gemini_client.analyze_montage_batch(
+                    montage_path=montage["montage_path"],
                     target_agent=self.target_agent,
                     target_username=self.target_username,
-                    encounter_meta=enc_meta
+                    montage_items=montage["items"],
+                    on_status_callback=on_status
                 )
 
-                # Rate-limit safety delay to stay well below 15 RPM free tier limit
-                if self.gemini_client.get_api_key() and idx < len(encounters) - 1:
-                    time.sleep(3.5)
-
-                # Merge clip info and analysis
-                full_encounter = {
-                    **enc_meta,
-                    **analysis_result
-                }
-
-                if full_encounter.get("is_target_player") and full_encounter.get("player_state") == "USER_ALIVE":
-                    target_count += 1
-                else:
-                    ignored_count += 1
-
-                analyzed_encounters.append(full_encounter)
+                for item_meta, analysis_res in zip(montage["items"], batch_analysis):
+                    full_encounter = {
+                        **item_meta,
+                        **analysis_res
+                    }
+                    if full_encounter.get("is_target_player") and full_encounter.get("player_state") == "USER_ALIVE":
+                        target_count += 1
+                    else:
+                        ignored_count += 1
+                    analyzed_encounters.append(full_encounter)
 
             # Save all encounters
             save_encounters(self.job_id, analyzed_encounters)

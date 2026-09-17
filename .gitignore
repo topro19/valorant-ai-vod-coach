@@ -1,0 +1,16 @@
+﻿.env
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.coverage
+htmlcov/
+*.log
+*.mp4
+*.mkv
+*.mov
+.DS_Store
+data/
+D:/valorant-vod-coach-data/
+temp/

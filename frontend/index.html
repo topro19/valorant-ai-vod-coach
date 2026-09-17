@@ -1,0 +1,507 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VALORANT AI VOD COACH</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Teko:wght@500;600;700&family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="app-layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-logo">
+          <svg viewBox="0 0 100 100" class="logo-svg">
+            <polygon points="15,20 85,20 65,80 35,80" fill="#FF4655" />
+            <polygon points="40,30 60,30 50,60" fill="#0F1923" />
+          </svg>
+        </div>
+        <div class="brand-text">
+          <span class="brand-title">VALORANT</span>
+          <span class="brand-subtitle">AI VOD COACH</span>
+        </div>
+      </div>
+
+      <div class="player-lock-badge">
+        <span class="status-dot green"></span>
+        <span class="text">PLAYER LOCK ACTIVE</span>
+      </div>
+
+      <nav class="nav-menu">
+        <button class="nav-item active" data-tab="dashboard">
+          <span class="icon">📊</span>
+          <span class="label">Dashboard</span>
+        </button>
+        <button class="nav-item" data-tab="upload">
+          <span class="icon">⚡</span>
+          <span class="label">Upload VOD</span>
+        </button>
+        <button class="nav-item" data-tab="progress" id="nav-progress-btn" style="display:none;">
+          <span class="icon pulse">🔄</span>
+          <span class="label">Analysis Progress</span>
+        </button>
+        <button class="nav-item" data-tab="report">
+          <span class="icon">📋</span>
+          <span class="label">Match Report</span>
+        </button>
+        <button class="nav-item" data-tab="encounters">
+          <span class="icon">🎯</span>
+          <span class="label">Encounters</span>
+        </button>
+        <button class="nav-item" data-tab="performance">
+          <span class="icon">📈</span>
+          <span class="label">Performance</span>
+        </button>
+        <button class="nav-item" data-tab="training">
+          <span class="icon">🏋️</span>
+          <span class="label">Training Plan</span>
+        </button>
+        <button class="nav-item" data-tab="settings">
+          <span class="icon">⚙️</span>
+          <span class="label">Settings</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="api-status-card" id="api-status-indicator">
+          <span class="status-indicator-dot red"></span>
+          <span class="api-status-text">Checking Gemini API...</span>
+        </div>
+        <div class="version-tag">v1.0.0 • Local-First Edition</div>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+      <!-- Top Header -->
+      <header class="top-header">
+        <div class="header-left">
+          <h1 id="page-title" class="page-title">TACTICAL DASHBOARD</h1>
+          <p id="page-subtitle" class="page-subtitle">Strict player-isolated Valorant analysis engine</p>
+        </div>
+        <div class="header-right">
+          <div class="active-agent-chip" id="active-agent-chip" style="display:none;">
+            <span class="agent-chip-label">TARGET AGENT:</span>
+            <span class="agent-chip-val" id="active-agent-name">BREACH</span>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="switchTab('upload')">
+            <span>+</span> NEW VOD ANALYSIS
+          </button>
+        </div>
+      </header>
+
+      <!-- TAB 1: DASHBOARD -->
+      <section class="tab-pane active" id="tab-dashboard">
+        <div class="hero-banner">
+          <div class="hero-text">
+            <h2>ELEVATE YOUR TACTICAL DECISION MAKING</h2>
+            <p>Powered by the open-source <strong>Valorant Timestamp Finder</strong> &amp; <strong>Gemini Video Intelligence</strong> with a strict <strong>Player Lock System</strong>. Never get blamed for teammate mistakes again.</p>
+            <div class="hero-actions">
+              <button class="btn btn-accent" onclick="switchTab('upload')">Analyze a Gameplay Recording</button>
+              <button class="btn btn-secondary" onclick="loadSampleLocalCapture()">Quick Load Windows Capture</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="stats-row">
+          <div class="stat-card">
+            <span class="stat-label">Total VODs Analyzed</span>
+            <span class="stat-value" id="dash-total-vods">0</span>
+            <span class="stat-sub">Local storage D:\</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">Player Lock Accuracy</span>
+            <span class="stat-value cyan">100%</span>
+            <span class="stat-sub">Zero teammate bias</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">Duel Timestamp Finder</span>
+            <span class="stat-value green">Active</span>
+            <span class="stat-sub">OpenCV Kill Banner Engine</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">Gemini Video Engine</span>
+            <span class="stat-value red" id="dash-gemini-status">Checking</span>
+            <span class="stat-sub" id="dash-model-name">gemini-2.5-flash</span>
+          </div>
+        </div>
+
+        <div class="dashboard-grid">
+          <div class="panel recent-jobs-panel">
+            <div class="panel-header">
+              <h3>Recent VOD Analyses</h3>
+              <button class="btn btn-ghost btn-sm" onclick="fetchRecentJobs()">Refresh</button>
+            </div>
+            <div class="panel-body">
+              <div class="jobs-list" id="recent-jobs-list">
+                <div class="empty-state">No VOD analyses yet. Upload a recording to begin!</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel local-captures-panel">
+            <div class="panel-header">
+              <h3>Detected Windows Captures</h3>
+              <span class="badge">Videos\Captures</span>
+            </div>
+            <div class="panel-body">
+              <div class="captures-list" id="local-captures-list">
+                <div class="loading-spinner"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 2: UPLOAD VOD -->
+      <section class="tab-pane" id="tab-upload">
+        <div class="upload-container">
+          <div class="panel upload-form-panel">
+            <div class="panel-header">
+              <h2>ANALYZE GAMEPLAY RECORDING</h2>
+              <span class="badge red-badge">PLAYER LOCK MANDATORY</span>
+            </div>
+            <div class="panel-body">
+              <!-- Dropzone -->
+              <div class="dropzone" id="vod-dropzone">
+                <div class="dropzone-icon">📹</div>
+                <h3>Drag &amp; Drop Valorant VOD (MP4, MKV, MOV)</h3>
+                <p>or click to browse local files on your computer</p>
+                <input type="file" id="vod-file-input" accept="video/mp4,video/mkv,video/quicktime,video/webm" style="display:none;">
+                <div class="selected-file-banner" id="selected-file-banner" style="display:none;">
+                  <span class="file-name" id="selected-file-name">filename.mp4</span>
+                  <button type="button" class="btn btn-ghost btn-xs" onclick="clearSelectedFile()">Change</button>
+                </div>
+              </div>
+
+              <!-- Or Select Local Video directly -->
+              <div class="or-divider"><span>OR SELECT LOCAL FILE PATH</span></div>
+              <div class="form-group">
+                <label>Direct Local Video Path (No file upload needed!)</label>
+                <div class="input-with-button">
+                  <input type="text" id="direct-video-path" class="input-field" placeholder="C:\Users\ginto\Videos\Captures\VALORANT   2026-09-15 15-45-04.mp4">
+                  <button type="button" class="btn btn-secondary btn-sm" onclick="useDirectPath()">Use Path</button>
+                </div>
+              </div>
+
+              <!-- Player Lock Configuration (Level 1) -->
+              <div class="player-lock-config-box">
+                <div class="config-header">
+                  <span class="icon">🔒</span>
+                  <div>
+                    <h4>LEVEL 1: PLAYER IDENTITY CONFIGURATION</h4>
+                    <p>The coach will strictly analyze this player and ignore teammates when you are dead.</p>
+                  </div>
+                </div>
+
+                <div class="form-row">
+                  <div class="form-group flex-1">
+                    <label>Player Agent (Mandatory) <span class="req">*</span></label>
+                    <select id="target-agent-select" class="input-field">
+                      <option value="Breach" selected>Breach</option>
+                      <option value="Jett">Jett</option>
+                      <option value="Reyna">Reyna</option>
+                      <option value="Cypher">Cypher</option>
+                      <option value="Omen">Omen</option>
+                      <option value="Sova">Sova</option>
+                      <option value="Phoenix">Phoenix</option>
+                      <option value="Sage">Sage</option>
+                      <option value="Killjoy">Killjoy</option>
+                      <option value="Viper">Viper</option>
+                      <option value="Brimstone">Brimstone</option>
+                      <option value="Skye">Skye</option>
+                      <option value="Yoru">Yoru</option>
+                      <option value="Astra">Astra</option>
+                      <option value="KAY/O">KAY/O</option>
+                      <option value="Chamber">Chamber</option>
+                      <option value="Neon">Neon</option>
+                      <option value="Fade">Fade</option>
+                      <option value="Harbor">Harbor</option>
+                      <option value="Gekko">Gekko</option>
+                      <option value="Deadlock">Deadlock</option>
+                      <option value="Iso">Iso</option>
+                      <option value="Clove">Clove</option>
+                      <option value="Vyse">Vyse</option>
+                    </select>
+                  </div>
+
+                  <div class="form-group flex-1">
+                    <label>Riot Username / Player Tag (Optional)</label>
+                    <input type="text" id="target-username-input" class="input-field" placeholder="e.g. 100hp or gintoki shwarma">
+                  </div>
+                </div>
+              </div>
+
+              <!-- Advanced Settings Accordion -->
+              <details class="advanced-settings-accordion">
+                <summary>Advanced Detection &amp; Gemini Settings</summary>
+                <div class="accordion-content">
+                  <div class="form-row">
+                    <div class="form-group flex-1">
+                      <label>Encounter Merge Window (Seconds)</label>
+                      <input type="number" id="setting-merge-window" class="input-field" value="7.0" step="0.5" min="2" max="20">
+                      <span class="field-hint">Groups rapid kills/trades within 7s into one encounter.</span>
+                    </div>
+                    <div class="form-group flex-1">
+                      <label>Pre-Roll Context (Seconds)</label>
+                      <input type="number" id="setting-pre-roll" class="input-field" value="12.0" step="1" min="5" max="30">
+                      <span class="field-hint">Captures pre-fight setup, positioning, and crosshair placement.</span>
+                    </div>
+                    <div class="form-group flex-1">
+                      <label>Post-Roll Context (Seconds)</label>
+                      <input type="number" id="setting-post-roll" class="input-field" value="5.0" step="1" min="2" max="15">
+                      <span class="field-hint">Captures post-kill trades and repositioning.</span>
+                    </div>
+                  </div>
+                  <div class="form-row">
+                    <div class="form-group flex-1">
+                      <label>Gemini Vision Model</label>
+                      <select id="setting-gemini-model" class="input-field">
+                        <option value="gemini-2.5-flash" selected>Gemini 2.5 Flash (Ultra Fast &amp; Accurate)</option>
+                        <option value="gemini-2.5-pro">Gemini 2.5 Pro (Deep Tactical Reasoning)</option>
+                      </select>
+                    </div>
+                    <div class="form-group flex-1">
+                      <label>Analysis Depth</label>
+                      <select id="setting-analysis-depth" class="input-field">
+                        <option value="standard" selected>Standard (All Confirmed Encounters)</option>
+                        <option value="deep">Deep (Comprehensive Macro + Micro)</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </details>
+
+              <div class="form-actions">
+                <button type="button" class="btn btn-primary btn-lg" id="start-analysis-btn" onclick="triggerAnalysis()">
+                  START AI VOD COACHING
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 3: ANALYSIS PROGRESS -->
+      <section class="tab-pane" id="tab-progress">
+        <div class="progress-container">
+          <div class="panel progress-panel">
+            <div class="panel-header">
+              <h2>COACHING PIPELINE IN PROGRESS</h2>
+              <span class="badge cyan-badge" id="progress-job-badge">JOB ID: ...</span>
+            </div>
+            <div class="panel-body">
+              <div class="overall-progress-bar-wrap">
+                <div class="overall-progress-bar" id="main-progress-bar" style="width: 0%;"></div>
+              </div>
+              <div class="progress-status-line">
+                <span id="current-stage-text">Initializing pipeline...</span>
+                <span id="progress-percentage-text">0%</span>
+              </div>
+
+              <!-- Real-time Stages Checklist -->
+              <div class="stages-checklist">
+                <div class="stage-item" id="stage-1">
+                  <span class="stage-icon">⏳</span>
+                  <div class="stage-info">
+                    <strong>1. Video Loaded &amp; Metadata Probed</strong>
+                    <p>Validating resolution, FPS, and FFmpeg decode pipelines.</p>
+                  </div>
+                </div>
+                <div class="stage-item" id="stage-2">
+                  <span class="stage-icon">⏳</span>
+                  <div class="stage-info">
+                    <strong>2. OpenCV Timestamp Finder Detection</strong>
+                    <p>Scanning video frames for kill banners, skull VFX, and killfeed combat bursts.</p>
+                  </div>
+                </div>
+                <div class="stage-item" id="stage-3">
+                  <span class="stage-icon">⏳</span>
+                  <div class="stage-info">
+                    <strong>3. Encounter Grouping &amp; Pre-Roll Expansion</strong>
+                    <p>Clustering nearby events (7s window) and establishing pre-fight &amp; post-fight windows.</p>
+                  </div>
+                </div>
+                <div class="stage-item" id="stage-4">
+                  <span class="stage-icon">⏳</span>
+                  <div class="stage-info">
+                    <strong>4. Local Encounter Clip Extraction</strong>
+                    <p>Generating web-streamable MP4 clips into D:\valorant-vod-coach-data\clips.</p>
+                  </div>
+                </div>
+                <div class="stage-item" id="stage-5">
+                  <span class="stage-icon">⏳</span>
+                  <div class="stage-info">
+                    <strong>5. Player Lock Identity Verification (State Machine)</strong>
+                    <p>Verifying agent HUD, ability icons, and first-person hands. Strictly isolating user POV.</p>
+                  </div>
+                </div>
+                <div class="stage-item" id="stage-6">
+                  <span class="stage-icon">⏳</span>
+                  <div class="stage-info">
+                    <strong>6. Gemini Gameplay Understanding &amp; Analysis</strong>
+                    <p>Evaluating crosshair placement, movement, peeking, positioning, and utility.</p>
+                  </div>
+                </div>
+                <div class="stage-item" id="stage-7">
+                  <span class="stage-icon">⏳</span>
+                  <div class="stage-info">
+                    <strong>7. Pattern Aggregation &amp; Mistake Weighting</strong>
+                    <p>Weighing recurring mistakes by frequency, severity, and death impact.</p>
+                  </div>
+                </div>
+                <div class="stage-item" id="stage-8">
+                  <span class="stage-icon">⏳</span>
+                  <div class="stage-info">
+                    <strong>8. Personalized Coaching Report &amp; Drills</strong>
+                    <p>Synthesizing match report and targeted training drills.</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Live Counter Metrics -->
+              <div class="live-metrics-box">
+                <div class="metric">
+                  <span class="metric-label">Duration</span>
+                  <span class="metric-val" id="metric-duration">--:--</span>
+                </div>
+                <div class="metric">
+                  <span class="metric-label">Candidate Events</span>
+                  <span class="metric-val" id="metric-candidates">0</span>
+                </div>
+                <div class="metric">
+                  <span class="metric-label">Grouped Encounters</span>
+                  <span class="metric-val" id="metric-encounters">0</span>
+                </div>
+                <div class="metric">
+                  <span class="metric-label">Target Player Confirmed</span>
+                  <span class="metric-val green" id="metric-target-valid">0</span>
+                </div>
+                <div class="metric">
+                  <span class="metric-label">Spectator Ignored</span>
+                  <span class="metric-val red" id="metric-spectator-ignored">0</span>
+                </div>
+              </div>
+
+              <div class="progress-done-cta" id="progress-done-cta" style="display:none;">
+                <button class="btn btn-accent btn-lg" onclick="switchTab('report')">VIEW COACHING REPORT</button>
+                <button class="btn btn-secondary btn-lg" onclick="switchTab('encounters')">EXPLORE ENCOUNTERS</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 4: MATCH REPORT -->
+      <section class="tab-pane" id="tab-report">
+        <div class="report-container" id="report-content-area">
+          <div class="empty-state">No report available yet. Run an analysis or select a past job.</div>
+        </div>
+      </section>
+
+      <!-- TAB 5: ENCOUNTERS -->
+      <section class="tab-pane" id="tab-encounters">
+        <div class="encounters-container">
+          <div class="encounters-filter-bar">
+            <div class="filter-group">
+              <button class="filter-btn active" data-filter="all" onclick="filterEncounters('all')">All Events</button>
+              <button class="filter-btn" data-filter="target" onclick="filterEncounters('target')">Target Player Only</button>
+              <button class="filter-btn" data-filter="ignored" onclick="filterEncounters('ignored')">Ignored Spectator Footage</button>
+            </div>
+            <div class="encounters-stats-summary" id="encounters-filter-count">
+              Showing 0 encounters
+            </div>
+          </div>
+
+          <div class="encounters-layout">
+            <div class="encounters-list-column" id="encounters-list-column">
+              <!-- Encounter cards dynamically rendered here -->
+            </div>
+
+            <div class="encounter-viewer-column" id="encounter-viewer-column">
+              <div class="panel sticky-panel">
+                <div class="panel-header">
+                  <h3 id="viewer-title">Encounter Review</h3>
+                  <span class="badge" id="viewer-badge">SELECT EVENT</span>
+                </div>
+                <div class="panel-body">
+                  <div class="video-player-wrap">
+                    <video id="encounter-video-player" controls preload="metadata" playsinline>
+                      <source src="" type="video/mp4">
+                      Your browser does not support HTML5 video.
+                    </video>
+                  </div>
+                  <div class="viewer-details" id="viewer-details">
+                    <div class="empty-state">Click on an encounter on the left to inspect detailed coaching breakdown and video.</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 6: PERFORMANCE -->
+      <section class="tab-pane" id="tab-performance">
+        <div class="performance-container" id="performance-content-area">
+          <div class="empty-state">Run an analysis to view tactical performance ratings.</div>
+        </div>
+      </section>
+
+      <!-- TAB 7: TRAINING PLAN -->
+      <section class="tab-pane" id="tab-training">
+        <div class="training-container" id="training-content-area">
+          <div class="empty-state">No training drills available yet.</div>
+        </div>
+      </section>
+
+      <!-- TAB 8: SETTINGS -->
+      <section class="tab-pane" id="tab-settings">
+        <div class="settings-container">
+          <div class="panel settings-panel">
+            <div class="panel-header">
+              <h2>COACH APPLICATION SETTINGS</h2>
+            </div>
+            <div class="panel-body">
+              <form id="settings-form" onsubmit="saveSettings(event)">
+                <div class="form-group">
+                  <label>Google Gemini API Key</label>
+                  <div class="input-with-button">
+                    <input type="password" id="settings-api-key" class="input-field" placeholder="AIzaSy...">
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="toggleApiKeyVisibility()">Show</button>
+                  </div>
+                  <span class="field-hint">Your key is stored securely in <code>.env</code> locally. Never shared or sent to external servers.</span>
+                </div>
+
+                <div class="form-group">
+                  <label>Default Gemini Model</label>
+                  <select id="settings-model" class="input-field">
+                    <option value="gemini-2.5-flash">Gemini 2.5 Flash (Recommended - Fastest &amp; Video-Optimized)</option>
+                    <option value="gemini-2.5-pro">Gemini 2.5 Pro (Deepest Tactical Reasoning)</option>
+                  </select>
+                </div>
+
+                <div class="form-group">
+                  <label>Data Storage Folder in D:\</label>
+                  <input type="text" id="settings-data-dir" class="input-field" value="D:\valorant-vod-coach-data">
+                  <span class="field-hint">Stores uploaded VODs, extracted encounter clips, SQLite database, and reports.</span>
+                </div>
+
+                <div class="form-actions">
+                  <button type="submit" class="btn btn-primary">SAVE CONFIGURATION</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="/js/app.js"></script>
+</body>
+</html>

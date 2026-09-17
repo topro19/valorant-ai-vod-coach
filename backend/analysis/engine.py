@@ -48,14 +48,14 @@ class AnalysisEngine:
             duration = meta["duration"]
             update_job(self.job_id, video_duration=duration)
 
-            # Stage 2: Timestamp Detection via OpenCV Valorant Timestamp Finder
-            update_job(self.job_id, stage="Timestamp detection (OpenCV)", progress=25.0)
+            # Stage 2: Hardware-Accelerated Combat Timestamp Detection
+            update_job(self.job_id, stage="Hardware-accelerated duel scanning", progress=25.0)
 
             def on_scan_progress(pct: float, msg: str):
                 scaled_pct = 25.0 + (pct * 0.15)
                 update_job(self.job_id, stage=msg, progress=round(scaled_pct, 1))
 
-            finder = ValorantTimestampFinder(sample_interval_sec=1.5)
+            finder = ValorantTimestampFinder(sample_interval_sec=2.5)
             candidates = finder.detect_candidate_events(self.video_path, progress_callback=on_scan_progress)
             
             # If video had no detected events (e.g. short clip or non-standard overlay),

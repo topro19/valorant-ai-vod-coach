@@ -13,10 +13,24 @@ class Settings:
     def reload(self):
         load_dotenv(ENV_FILE, override=True)
         self.gemini_api_key = os.getenv('GEMINI_API_KEY', '').strip()
-        self.data_dir = Path(os.getenv('DATA_DIR', r'D:\valorant-vod-coach-data'))
+        
+        # Adaptive data directory: Use configured DATA_DIR, or D:\ if available, else User Home directory
+        configured_data_dir = os.getenv('DATA_DIR', '').strip()
+        if configured_data_dir:
+            self.data_dir = Path(configured_data_dir)
+        elif Path('D:/').exists():
+            self.data_dir = Path(r'D:\valorant-vod-coach-data')
+        else:
+            self.data_dir = Path.home() / 'valorant-vod-coach-data'
+
         self.host = os.getenv('HOST', '127.0.0.1')
         self.port = int(os.getenv('PORT', '8000'))
         self.gemini_model = os.getenv('GEMINI_MODEL', 'gemini-2.5-flash')
+
+        # Add local bin folder to PATH if present (for portable ffmpeg)
+        bin_dir = BASE_DIR / 'bin'
+        if bin_dir.exists():
+            os.environ['PATH'] = f"{str(bin_dir)};{os.environ.get('PATH', '')}"
 
         # Subdirectories
         self.uploads_dir = self.data_dir / 'uploads'

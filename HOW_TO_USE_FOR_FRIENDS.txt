@@ -1,0 +1,55 @@
+================================================================================
+           VALORANT AI VOD COACH - QUICK START FOR FRIENDS
+================================================================================
+
+Welcome! This application analyzes your Valorant gameplay recordings using 
+OpenCV combat detection and Google Gemini AI video intelligence with a strict 
+PLAYER LOCK system (zero advice derived from teammates or spectator views).
+
+--------------------------------------------------------------------------------
+STEP 1: INSTALL & SETUP (1-CLICK)
+--------------------------------------------------------------------------------
+Simply double-click:
+    "Setup.bat"
+
+What this does automatically:
+- Checks for Python (and helps install it if you don't have it).
+- Creates an isolated environment so it doesn't mess with other programs.
+- Installs all required packages (OpenCV, PyWebView, FastAPI, Gemini SDK).
+- Creates a "VALORANT AI VOD Coach" shortcut right on your Windows Desktop.
+
+--------------------------------------------------------------------------------
+STEP 2: LAUNCH THE COACH
+--------------------------------------------------------------------------------
+You can launch the app at any time by:
+- Double-clicking the "VALORANT AI VOD Coach" shortcut on your Desktop
+  OR
+- Double-clicking "Launch Coach.bat" in this folder.
+
+--------------------------------------------------------------------------------
+STEP 3: ENTER YOUR GEMINI API KEY (FREE)
+--------------------------------------------------------------------------------
+When the app opens, you will be prompted to connect your Google Gemini API key:
+
+1. Get a 100% free Gemini API key in 30 seconds:
+   👉 https://aistudio.google.com/app/apikey
+2. Copy your key (starts with "AIzaSy...")
+3. Paste it into the setup dialog and click "VERIFY & ACTIVATE KEY".
+4. (Optional) If you don't have a key right now, you can click "Offline Demo Mode"
+   to test the interface and combat detection immediately!
+
+--------------------------------------------------------------------------------
+STEP 4: ANALYZE YOUR GAMEPLAY
+--------------------------------------------------------------------------------
+1. Select your target Agent (e.g., Breach, Jett, Reyna, Cypher).
+2. Drag & drop your MP4 gameplay recording, or click "Quick Load Windows Capture"
+   to automatically find recordings in your "Videos\Captures" folder.
+3. Click "START ANALYSIS".
+4. Review the breakdown:
+   - Synchronized encounter video clips
+   - Root-cause mistake explanations ("Why it was a mistake", "What you should have done")
+   - Top 5 positive habits
+   - Personalized custom training drills
+
+Have fun climbing the ranks!
+================================================================================

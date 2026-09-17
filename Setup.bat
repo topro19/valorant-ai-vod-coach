@@ -46,6 +46,20 @@ if "%PY_CMD%"=="" (
 
 for /f "tokens=*" %%v in ('%PY_CMD% --version 2^>^&1') do echo [OK] Found %%v
 
+:: Check if application files exist; if not, download automatically from GitHub
+if not exist "backend" (
+    echo.
+    echo [!] Application files not detected in this folder.
+    echo [*] Downloading full VALORANT AI VOD COACH from GitHub...
+    %PY_CMD% -c "import urllib.request, zipfile, io, pathlib; url='https://github.com/topro19/valorant-ai-vod-coach/archive/refs/heads/master.zip'; req=urllib.request.Request(url, headers={'User-Agent': 'VodCoach/1.0'}); z=zipfile.ZipFile(io.BytesIO(urllib.request.urlopen(req).read())); [(pathlib.Path(*pathlib.Path(f).parts[1:]).parent.mkdir(parents=True, exist_ok=True), pathlib.Path(*pathlib.Path(f).parts[1:]).write_bytes(z.read(f))) for f in z.namelist() if len(pathlib.Path(f).parts) > 1 and not f.endswith('/')]; print('[OK] Application files successfully downloaded and extracted!')"
+    if errorlevel 1 (
+        echo [!] Failed to download application files from GitHub.
+        echo Please check your internet connection and try again.
+        pause
+        exit /b 1
+    )
+)
+
 :: 2. Initialize Configuration (.env)
 echo.
 echo [2/5] Initializing local configuration...

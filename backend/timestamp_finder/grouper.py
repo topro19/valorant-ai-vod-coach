@@ -1,4 +1,4 @@
-﻿from typing import List, Dict, Any
+from typing import List, Dict, Any
 from backend.timestamp_finder.detector import CandidateTimestamp
 
 class EncounterWindow:
@@ -43,9 +43,10 @@ class EncounterGrouper:
     def group_events(
         candidates: List[CandidateTimestamp],
         video_duration: float,
-        merge_window_sec: float = 7.0,
-        pre_roll_sec: float = 12.0,
-        post_roll_sec: float = 5.0
+        merge_window_sec: float = 5.0,
+        max_cluster_duration_sec: float = 16.0,
+        pre_roll_sec: float = 7.0,
+        post_roll_sec: float = 3.5
     ) -> List[EncounterWindow]:
         if not candidates:
             return []
@@ -53,39 +54,52 @@ class EncounterGrouper:
         # Sort candidates by timestamp
         sorted_candidates = sorted(candidates, key=lambda c: c.timestamp_sec)
         
-        # 1. Cluster nearby timestamps within merge_window_sec
+        # 1. Cluster nearby timestamps with both step limit and max cluster duration limit
         clusters: List[List[CandidateTimestamp]] = []
         current_cluster: List[CandidateTimestamp] = [sorted_candidates[0]]
 
         for cand in sorted_candidates[1:]:
             prev_cand = current_cluster[-1]
-            if cand.timestamp_sec - prev_cand.timestamp_sec <= merge_window_sec:
+            first_cand = current_cluster[0]
+            # Must be close in time AND total cluster must not exceed max_cluster_duration_sec
+            is_close = (cand.timestamp_sec - prev_cand.timestamp_sec) <= merge_window_sec
+            is_within_limit = (cand.timestamp_sec - first_cand.timestamp_sec) <= max_cluster_duration_sec
+
+            if is_close and is_within_limit:
                 current_cluster.append(cand)
             else:
                 clusters.append(current_cluster)
                 current_cluster = [cand]
+
         if current_cluster:
             clusters.append(current_cluster)
 
         # 2. Convert clusters to expanded encounter windows
         encounters: List[EncounterWindow] = []
         for idx, cluster in enumerate(clusters):
-            # The representative event timestamp (e.g. median or first significant kill trigger)
+            # Anchor to first KILL_BANNER or DEATH_VIGNETTE if present
             event_sec = cluster[0].timestamp_sec
             for c in cluster:
-                if c.trigger_type == "KILL_BANNER":
+                if c.trigger_type in ["KILL_BANNER", "DEATH_VIGNETTE"]:
                     event_sec = c.timestamp_sec
                     break
 
             start_sec = max(0.0, cluster[0].timestamp_sec - pre_roll_sec)
             end_sec = min(video_duration, cluster[-1].timestamp_sec + post_roll_sec)
 
+            # Cap individual encounter duration to prevent runaway clips
+            if (end_sec - start_sec) > 25.0:
+                end_sec = start_sec + 25.0
+
             # Prevent overlap with previous encounter
             if encounters and start_sec < encounters[-1].end_sec:
-                # Adjust previous end or current start to midpoint
-                midpoint = (encounters[-1].end_sec + start_sec) / 2.0
-                encounters[-1].end_sec = midpoint
-                start_sec = midpoint
+                if encounters[-1].end_sec - encounters[-1].start_sec > 4.0:
+                    midpoint = (encounters[-1].end_sec + start_sec) / 2.0
+                    encounters[-1].end_sec = midpoint
+                    start_sec = midpoint
+                else:
+                    start_sec = encounters[-1].end_sec + 0.5
+                    end_sec = max(start_sec + 3.0, end_sec)
 
             trigger = "KILL_BANNER" if any(c.trigger_type == "KILL_BANNER" for c in cluster) else "KILLFEED_COMBAT"
 
@@ -99,3 +113,4 @@ class EncounterGrouper:
             ))
 
         return encounters
+

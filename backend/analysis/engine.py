@@ -26,9 +26,9 @@ class AnalysisEngine:
         self.job_settings = self.job.get("settings", {})
 
         # Job configuration
-        self.merge_window = float(self.job_settings.get("merge_window", 7.0))
-        self.pre_roll = float(self.job_settings.get("pre_roll", 12.0))
-        self.post_roll = float(self.job_settings.get("post_roll", 5.0))
+        self.merge_window = float(self.job_settings.get("merge_window", 5.0))
+        self.pre_roll = float(self.job_settings.get("pre_roll", 7.0))
+        self.post_roll = float(self.job_settings.get("post_roll", 3.5))
         self.gemini_model = self.job_settings.get("gemini_model", settings.gemini_model)
 
         self.state_machine = PlayerIdentityStateMachine(
